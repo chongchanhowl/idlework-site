@@ -180,14 +180,16 @@ function closeNav() {
 
 /* ---------- 注入共享页脚 ---------- */
 function injectFooter() {
-  const footer = document.createElement("footer");
-  footer.className = "footer";
+  let footer = document.querySelector("footer.footer");
+  if (!footer) {
+    footer = document.createElement("footer");
+    footer.className = "footer";
+    document.body.append(footer);
+  }
   const links = LABEL.social
     .map((s) => `<a href="${s.url}" target="_blank" rel="noopener">${s.name}</a>`)
     .join("");
-  footer.innerHTML = `
-    <div class="f-links">${links}</div>`;
-  document.body.append(footer);
+  footer.innerHTML = `<div class="f-links">${links}</div>`;
 }
 
 /* ---------- 注入字体（6 款可变展示字体 + Space Mono 等宽 UI 字体），覆盖所有页面 ---------- */
@@ -1199,6 +1201,8 @@ function mergeContent(ov) {
       }
     }
   }
+  // 页脚联系方式链接（Bandcamp / 微信公众号 / Instagram 等）
+  if (Array.isArray(ov.social) && ov.social.length) LABEL.social = ov.social;
   // 仅当后台覆盖数组非空时才替换默认值（空数组 [] 在 JS 里为 truthy，
   // 若 localStorage 中某栏目被存成空数组会误清空真实内容，故用 .length 守卫）
   const REPLACE = [
@@ -1235,9 +1239,9 @@ async function loadContent() {
 async function init() {
   injectFonts();        // 确保所有页面（含子页面）加载 10 款字体
   injectHeader();
-  injectFooter();
   applyTheme();
-  await loadContent();  // 渲染前合并后台/部署内容
+  await loadContent();  // 渲染前合并后台/部署内容（含 social 覆盖）
+  injectFooter();       // 使用可能被 content.json / iwStore 覆盖后的 LABEL.social
   applyLang();          // 含 renderPage() → 标记 .live 元素
   animateHero();
   // 注意：animateLive()（子页面全局文字动效）已按需求关闭，动画仅保留在主页（hero 逐字母 + 背景图形）

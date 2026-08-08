@@ -148,6 +148,21 @@
     } catch {}
   }
 
+  /* ---------- 载入页脚联系方式（后台可编辑） ---------- */
+  async function loadSocial() {
+    try {
+      const r = await fetch("content.json", { cache: "no-store" });
+      if (r.ok) {
+        const ov = await r.json();
+        if (Array.isArray(ov.social) && ov.social.length) LABEL.social = ov.social;
+      }
+    } catch {}
+    try {
+      const ov = await iwStore.get("iw-content");
+      if (ov && Array.isArray(ov.social) && ov.social.length) LABEL.social = ov.social;
+    } catch {}
+  }
+
   function coverHTML(p) {
     if (p.cover) return `<img src="${escAttr(p.cover)}" alt="${escAttr(p.title)}">`;
     const first = (p.photos && p.photos[0]) || "";
@@ -176,6 +191,7 @@
     applyTheme();
     injectHeader(); applyLang();
     await loadPhotobooks();
+    await loadSocial();
     injectFooter();
 
     const params = new URLSearchParams(location.search);
