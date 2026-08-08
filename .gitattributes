@@ -1,0 +1,12 @@
+# 统一换行符为 LF，保证跨平台 / GitHub(Linux) 一致
+* text=auto eol=lf
+
+# 二进制资源不做换行或文本转换
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.webp binary
+*.mp4 binary
+*.ico binary
+*.svg text

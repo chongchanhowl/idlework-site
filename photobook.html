@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>idlework Records · 摄影集</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="styles.css">
+  <link id="iw-fonts" rel="stylesheet"
+    href="https://fonts.googleapis.com/css2?family=Inter:wght@100..900&family=Newsreader:opsz,wght@6..72,200..800&family=Playfair+Display:wght@400..900&family=Roboto+Flex:opsz,wght,wdth@8..144,100..1000,25..151&family=Source+Serif+4:opsz,wght@8..60,200..900&family=Space+Mono:wght@400;700&family=Work+Sans:wght@100..900&display=swap">
+</head>
+<body>
+  <main id="pbView"></main>
+  <script src="data.js"></script>
+  <script>
+  /* ===== 摄影集独立网页（photobook.html?pb=N）=====
+     复用站点样式与内容管线：先读 data.js 默认 → content.json（部署）→ iwStore（本地后台编辑）。 */
+  const NAV = [
+    { en: "NEWS",    zh: "动态",   href: "news.html" },
+    { en: "ARTS",    zh: "创造力",   href: "music.html" },
+    { en: "ARTISTS", zh: "艺术家", href: "artists.html" },
+    { en: "REVIEWS", zh: "回顾",   href: "reviews.html" },
+    { en: "BLOG",    zh: "博客",   href: "blog.html" },
+    { en: "MERCH",   zh: "商品",   href: "merch.html" },
+    { en: "ABOUT",   zh: "关于",   href: "about.html" },
+  ];
+  const store = {
+    get(k, d) { try { return localStorage.getItem(k) || d; } catch { return d; } },
+    set(k, v) { try { localStorage.setItem(k, v); } catch {} },
+  };
+  const iwStore = (() => {
+    const DB = "iw-store", OS = "kv";
+    function open() {
+      return new Promise((res, rej) => {
+        const req = indexedDB.open(DB, 1);
+        req.onupgradeneeded = () => { if (!req.result.objectStoreNames.contains(OS)) req.result.createObjectStore(OS); };
+        req.onsuccess = () => res(req.result); req.onerror = () => rej(req.error);
+      });
+    }
+    async function get(key) {
+      try {
+        const db = await open();
+        const v = await new Promise((res, rej) => {
+          const tx = db.transaction(OS, "readonly");
+          const r = tx.objectStore(OS).get(key);
+          r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error);
+        });
+        db.close();
+        if (v !== undefined) return v;
+      } catch {}
+      try { const s = localStorage.getItem(key); return s == null ? null : (() => { try { return JSON.parse(s); } catch { return s; } })(); }
+      catch { return null; }
+    }
+    return { get };
+  })();
+  let theme = store.get("iw-theme", "light");
+  let lang = store.get("iw-lang", "zh");
+  const grad = (c) => `linear-gradient(135deg, ${c[0]}, ${c[1]})`;
+  const escHtml = (s) => String(s == null ? "" : s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  const escAttr = (s) => escHtml(s);
+  const metaLine = (...parts) => parts.filter((x) => String(x ?? "").trim() !== "").join(" · ");
+
+  /* ---------- 共享头部 / 页脚（与站点一致） ---------- */
+  function injectHeader() {
+    const cur = "photobook.html";
+    const links = NAV.map((it) => `<a href="${it.href}" class="${it.href === cur ? "active" : ""}" data-nav="${it.en}">${lang === "zh" ? it.zh : it.en}</a>`).join("");
+    const brand = document.createElement("a");
+    brand.className = "brand"; brand.href = "index.html";
+    brand.innerHTML = `<img src="logo.png" alt="idlework records" class="brand-logo">`;
+    const header = document.createElement("header");
+    header.className = "topnav";
+    header.innerHTML = `
+      <button class="nav-toggle" id="navToggle" aria-label="menu" aria-expanded="false"><span></span><span></span><span></span></button>
+      <nav class="nav-btns nav-btns-inline">${links}<span class="sep"></span>
+        <button id="themeToggle" data-i18n="theme" title="theme">☀</button>
+        <button id="langToggle" data-i18n="lang">EN</button>
+      </nav>`;
+    const panel = document.createElement("div");
+    panel.className = "nav-panel"; panel.id = "navPanel";
+    panel.innerHTML = `<a href="index.html" class="nav-panel-home">首页 / Home</a>${links}
+      <div class="nav-panel-foot"><button class="panel-theme" data-i18n="theme" title="theme">☀</button><button class="panel-lang" data-i18n="lang">EN</button></div>`;
+    document.body.prepend(panel); document.body.prepend(header); document.body.prepend(brand);
+    document.getElementById("themeToggle").addEventListener("click", toggleTheme);
+    document.getElementById("langToggle").addEventListener("click", toggleLang);
+    document.getElementById("navToggle").addEventListener("click", toggleNav);
+    panel.querySelector(".panel-theme").addEventListener("click", toggleTheme);
+    panel.querySelector(".panel-lang").addEventListener("click", toggleLang);
+    panel.querySelectorAll("a").forEach((a) => a.addEventListener("click", closeNav));
+    document.addEventListener("click", (e) => {
+      const p = document.getElementById("navPanel");
+      if (!p || !p.classList.contains("open")) return;
+      const t = document.getElementById("navToggle");
+      if (p.contains(e.target) || (t && t.contains(e.target))) return;
+      closeNav();
+    });
+  }
+  function toggleNav() {
+    const p = document.getElementById("navPanel"), t = document.getElementById("navToggle");
+    const open = p.classList.toggle("open");
+    if (t) { t.classList.toggle("active", open); t.setAttribute("aria-expanded", open ? "true" : "false"); }
+    document.body.classList.toggle("nav-open", open);
+  }
+  function closeNav() {
+    const p = document.getElementById("navPanel"), t = document.getElementById("navToggle");
+    if (p) p.classList.remove("open");
+    if (t) { t.classList.remove("active"); t.setAttribute("aria-expanded", "false"); }
+    document.body.classList.remove("nav-open");
+  }
+  function injectFooter() {
+    const footer = document.createElement("footer");
+    footer.className = "footer";
+    footer.innerHTML = `<div class="f-links">${LABEL.social.map((s) => `<a href="${s.url}" target="_blank" rel="noopener">${s.name}</a>`).join("")}</div>`;
+    document.body.append(footer);
+  }
+  function applyTheme() {
+    document.documentElement.classList.toggle("dark", theme === "dark");
+    document.querySelectorAll('[data-i18n="theme"]').forEach((el) => { el.textContent = theme === "dark" ? "🌙" : "☀"; });
+  }
+  function toggleTheme() { theme = theme === "dark" ? "light" : "dark"; store.set("iw-theme", theme); applyTheme(); }
+  function applyLang() {
+    document.documentElement.lang = lang === "zh" ? "zh-CN" : "en";
+    document.querySelectorAll("[data-i18n]").forEach((el) => {
+      const k = el.getAttribute("data-i18n");
+      if (k === "lang") { el.textContent = I18N[lang].lang; return; }
+      if (k === "theme") return;
+      if (I18N[lang][k] != null) el.textContent = I18N[lang][k];
+    });
+    document.querySelectorAll("a[data-nav]").forEach((a) => {
+      const it = NAV.find((n) => n.en === a.getAttribute("data-nav"));
+      if (it) a.textContent = lang === "zh" ? it.zh : it.en;
+    });
+  }
+  function toggleLang() { lang = lang === "zh" ? "en" : "zh"; store.set("iw-lang", lang); location.reload(); }
+
+  /* ---------- 载入摄影集内容（与站点管线一致） ---------- */
+  async function loadPhotobooks() {
+    try {
+      const r = await fetch("content.json", { cache: "no-store" });
+      if (r.ok) {
+        const ov = await r.json();
+        if (ov.photobooks && ov.photobooks.length) { PHOTOBOOKS.length = 0; PHOTOBOOKS.push(...ov.photobooks); }
+      }
+    } catch {}
+    try {
+      const ov = await iwStore.get("iw-content");
+      if (ov && ov.photobooks && ov.photobooks.length) { PHOTOBOOKS.length = 0; PHOTOBOOKS.push(...ov.photobooks); }
+    } catch {}
+  }
+
+  function coverHTML(p) {
+    if (p.cover) return `<img src="${escAttr(p.cover)}" alt="${escAttr(p.title)}">`;
+    const first = (p.photos && p.photos[0]) || "";
+    if (first) return `<img src="${escAttr(first)}" alt="${escAttr(p.title)}">`;
+    return `<div class="detail-cover-grad" style="background:${grad(["#3a3a3a", "#8a8a8a"])}"></div>`;
+  }
+
+  let light = null;   // { photos, idx }
+  function openLight(i) {
+    const m = document.getElementById("pbLight");
+    const photos = light.photos;
+    light.idx = (i + photos.length) % photos.length;
+    document.getElementById("pbLightImg").src = photos[light.idx];
+    document.getElementById("pbLightCounter").textContent = `${light.idx + 1} / ${photos.length}`;
+    m.classList.add("open");
+    document.body.classList.add("no-scroll");
+  }
+  function closeLight() {
+    const m = document.getElementById("pbLight");
+    if (m) m.classList.remove("open");
+    document.body.classList.remove("no-scroll");
+    light = null;
+  }
+
+  async function main() {
+    applyTheme();
+    injectHeader(); applyLang();
+    await loadPhotobooks();
+    injectFooter();
+
+    const params = new URLSearchParams(location.search);
+    const idx = parseInt(params.get("pb") || "0", 10);
+    const p = PHOTOBOOKS[idx];
+    const L = I18N[lang];
+    const view = document.getElementById("pbView");
+
+    if (!p) {
+      view.innerHTML = `<div class="pb-missing"><h1>${L.photoBooks}</h1><p>未找到该摄影集。<a href="music.html">← ${lang === "zh" ? "返回创造力" : "Back to Arts"}</a></p></div>`;
+      return;
+    }
+    const photos = p.photos || [];
+    const backLabel = lang === "zh" ? "← 创造力 / Arts" : "← Arts";
+    view.innerHTML = `
+      <div class="pb-page">
+        <a class="pb-back" href="music.html">${backLabel}</a>
+        <div class="pb-hero">
+          <div class="pb-hero-cover">${coverHTML(p)}</div>
+          <div class="pb-hero-info">
+            <div class="pb-hero-tags">${escHtml(metaLine(p.artist, p.year, p.format))}</div>
+            <h1 class="pb-hero-title">${escHtml(p.title)}</h1>
+            <p class="pb-hero-desc">${escHtml(p.desc || "").replace(/\n/g, "<br>")}</p>
+          </div>
+        </div>
+        <div class="pb-grid">
+          ${photos.length ? photos.map((src, i) => `<button class="pb-cell" data-i="${i}" aria-label="${escAttr(p.title)} ${i + 1}"><img src="${escAttr(src)}" alt=""></button>`).join("")
+            : `<div class="pb-empty">${lang === "zh" ? "暂未上传照片" : "No photos yet"}</div>`}
+        </div>
+      </div>
+
+      <div class="gallery-modal" id="pbLight" aria-hidden="true">
+        <div class="gallery-backdrop" id="pbLightBackdrop"></div>
+        <div class="gallery-panel" role="dialog" aria-modal="true">
+          <button class="gallery-close" id="pbLightClose" aria-label="关闭">✕</button>
+          <div class="gallery-stage">
+            <button class="gallery-nav gallery-prev" id="pbLightPrev" aria-label="上一张">‹</button>
+            <img class="gallery-img" id="pbLightImg" alt="">
+            <button class="gallery-nav gallery-next" id="pbLightNext" aria-label="下一张">›</button>
+          </div>
+          <div class="gallery-bar"><span class="gallery-title">${escHtml(p.title)} · ${escHtml(p.year || "")}</span><span class="gallery-counter" id="pbLightCounter"></span></div>
+        </div>
+      </div>`;
+
+    // 缩略图 → 灯箱
+    view.querySelector(".pb-grid").addEventListener("click", (e) => {
+      const c = e.target.closest(".pb-cell");
+      if (!c) return;
+      light = { photos, idx: 0 };
+      openLight(+c.dataset.i);
+    });
+    document.getElementById("pbLightClose").addEventListener("click", closeLight);
+    document.getElementById("pbLightBackdrop").addEventListener("click", closeLight);
+    document.getElementById("pbLightPrev").addEventListener("click", () => openLight(light.idx - 1));
+    document.getElementById("pbLightNext").addEventListener("click", () => openLight(light.idx + 1));
+    document.addEventListener("keydown", (e) => {
+      if (!document.getElementById("pbLight").classList.contains("open")) return;
+      if (e.key === "Escape") closeLight();
+      else if (e.key === "ArrowLeft") openLight(light.idx - 1);
+      else if (e.key === "ArrowRight") openLight(light.idx + 1);
+    });
+  }
+  main();
+  </script>
+</body>
+</html>

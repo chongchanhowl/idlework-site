@@ -1,0 +1,33 @@
+# WorkBuddy 项目数据（含本地状态，切勿提交到 GitHub）
+.workbuddy/
+
+# 依赖 / 构建产物（本项目为纯静态，无 node_modules，仅作防护）
+node_modules/
+dist/
+.cache/
+
+# 系统 / 编辑器垃圾
+.DS_Store
+Thumbs.db
+*.swp
+.idea/
+.vscode/
+
+# ---- 本地编辑器：仅供本机编辑内容，不部署到公开站点 ----
+# 后台编辑流程：本机打开 admin.html → 写入浏览器本地库 → 导出 content.json → 提交推送。
+# 因此 admin.* 与 extract_images.js 只需保留在本机磁盘，不必进 GitHub 仓库。
+# 若你希望把编辑器也一起部署到网站上，删除下面这几行即可。
+admin.html
+admin.js
+extract_images.js
+start-local.bat
+stop-local.bat
+
+# ---- 验证 / 测试 / 备份 等过程产物（非站点所需）----
+_detail_test.js
+_pb_test.js
+_log.py
+font-compare.html
+verify_fontsize.js
+*.bak
+screenshots/
